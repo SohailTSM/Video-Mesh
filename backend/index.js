@@ -14,6 +14,7 @@ const io = new Server(server, {
 
 const rooms = {};
 const socketIdtoUsernameMap = new Map();
+const socketIdtoRoomIdMap = new Map();
 
 app.get('/', (req, res) => {
   res.json({ message: 'Test' });
@@ -26,16 +27,41 @@ io.on('connection', (socket) => {
   console.log(socket.id);
   socket.on('create-room', async () => {
     const roomId = uuid();
+    socketIdtoRoomIdMap.set(socket.id, roomId);
     rooms[roomId] = [socket.id];
     await socket.join(roomId);
     console.log(username + ' joined room - ' + roomId);
   });
 
   socket.on('join-room', async ({ roomId }) => {
+    if (!rooms.roomId) {
+      socket.emit('error', { message: 'No such room found' });
+      return;
+    }
     rooms[roomId].push(socket.id);
+    socketIdtoRoomIdMap.set(socket.id, roomId);
     await socket.join(roomId);
     console.log(username + ' joined room - ' + roomId);
-    socket.emit('new-user', { username: socketIdtoUsernameMap.get(socket.id) });
+    socket.emit('new-user', { username });
+  });
+
+  socket.on('offer-to', ({ offer, username }) => {
+    const toSocketId = Object.keys(socketIdtoUsernameMap).find(
+      (key) => socketIdtoUsernameMap.get(key) == username
+    );
+    socket.broadcast.to(toSocketId).emit('offer', { offer, username });
+  });
+
+  socket.on('answer', ({ answer, username }) => {
+    socket.broadcast
+      .to(socketIdtoRoomIdMap.get(socket.id))
+      .emit('answer', { answer, username });
+  });
+
+  socket.on('ice-candidate', ({ iceCandidate, username }) => {
+    socket.broadcast
+      .to(socketIdtoRoomIdMap.get(socket.id))
+      .emit('ice-candidate', { iceCandidate, username });
   });
 
   socket.on('disconnect', async () => {
