@@ -1,7 +1,7 @@
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
-const { uuid } = require('uuidv4');
+const cors = require('cors');
 
 const app = express();
 const server = http.createServer(app);
@@ -11,22 +11,25 @@ const io = new Server(server, {
     methods: ['GET', 'POST'],
   },
 });
+app.use(cors());
 
 const rooms = {};
 const socketIdtoUsernameMap = new Map();
 const socketIdtoRoomIdMap = new Map();
 
-app.get('/', (req, res) => {
-  res.json({ message: 'Test' });
+app.get('/checkRoom/:roomId', (req, res) => {
+  const roomId = req.params.roomId;
+  if (!rooms.roomId) {
+    return res.json({ isRoom: false });
+  }
+  res.json({ isRoom: true });
 });
 
 io.on('connection', (socket) => {
   // console.log('User connected.');
   const username = socket.handshake.query.username;
   socketIdtoUsernameMap.set(socket.id, username);
-  console.log(socket.id);
-  socket.on('create-room', async () => {
-    const roomId = uuid();
+  socket.on('create-room', async ({ roomId }) => {
     socketIdtoRoomIdMap.set(socket.id, roomId);
     rooms[roomId] = [socket.id];
     await socket.join(roomId);
