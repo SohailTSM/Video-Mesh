@@ -12,6 +12,8 @@ export const loader = async ({ request }) => {
   return { flag, username, socket, roomId };
 };
 
+let keyCount = 0;
+
 const RoomPage = () => {
   const { flag, username: myUsername, socket, roomId } = useLoaderData();
   const { peerConnections, createOffer, createAnswer, saveAnswer } = usePeers();
@@ -70,8 +72,6 @@ const RoomPage = () => {
     };
   }, []);
 
-  let keyCount = 0;
-
   return (
     <div>
       {videoStreams[myUsername]
@@ -81,7 +81,9 @@ const RoomPage = () => {
               autoPlay
               playsInline
               controls={false}
-              ref={(a) => (a.srcObject = videoStreams[key])}
+              ref={(ref) => {
+                if (ref) ref.srcObject = videoStreams[key];
+              }}
               key={keyCount++}
             />
           ))
