@@ -1,6 +1,7 @@
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import HomePage from './pages/HomePage';
 import RoomPage, { loader as roomLoader } from './pages/RoomPage';
+import PeersProvider from './providers/PeersProvider';
 
 function App() {
   const router = createBrowserRouter([
@@ -14,7 +15,11 @@ function App() {
       loader: roomLoader,
     },
   ]);
-  return <RouterProvider router={router}></RouterProvider>;
+  return (
+    <PeersProvider>
+      <RouterProvider router={router}></RouterProvider>;
+    </PeersProvider>
+  );
 }
 
 export default App;

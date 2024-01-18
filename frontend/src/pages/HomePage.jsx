@@ -25,7 +25,7 @@ const HomePage = () => {
     if (!data.isRoom) {
       return alert('Enter a valid room Id');
     }
-    navigate('/' + roomId + '?flag=J&username=' + usernameInput);
+    navigate('/' + roomIdInput + '?flag=J&username=' + usernameInput);
   }, [usernameInput, roomIdInput]);
 
   return (

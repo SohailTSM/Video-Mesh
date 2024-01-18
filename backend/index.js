@@ -19,7 +19,7 @@ const socketIdtoRoomIdMap = new Map();
 
 app.get('/checkRoom/:roomId', (req, res) => {
   const roomId = req.params.roomId;
-  if (!rooms.roomId) {
+  if (!rooms[roomId]) {
     return res.json({ isRoom: false });
   }
   res.json({ isRoom: true });
@@ -33,46 +33,61 @@ io.on('connection', (socket) => {
     socketIdtoRoomIdMap.set(socket.id, roomId);
     rooms[roomId] = [socket.id];
     await socket.join(roomId);
-    console.log(username + ' joined room - ' + roomId);
+    console.log(username + ' created room - ' + roomId);
   });
 
   socket.on('join-room', async ({ roomId }) => {
-    if (!rooms.roomId) {
+    if (!rooms[roomId]) {
+      console.log('No such room');
       socket.emit('error', { message: 'No such room found' });
       return;
     }
-    rooms[roomId].push(socket.id);
+    if (!rooms[roomId]?.includes(socket.id)) {
+      rooms[roomId].push(socket.id);
+    }
     socketIdtoRoomIdMap.set(socket.id, roomId);
     await socket.join(roomId);
     console.log(username + ' joined room - ' + roomId);
-    socket.emit('new-user', { username });
+    socket.broadcast.to(roomId).emit('new-user', { username });
   });
 
-  socket.on('offer-to', ({ offer, username }) => {
-    const toSocketId = Object.keys(socketIdtoUsernameMap).find(
-      (key) => socketIdtoUsernameMap.get(key) == username
-    );
-    socket.broadcast.to(toSocketId).emit('offer', { offer, username });
+  socket.on('offer-to', ({ offer, to, from }) => {
+    let toSocketId = '';
+    socketIdtoUsernameMap.forEach((value, key) => {
+      if (value == to) {
+        toSocketId = key;
+      }
+    });
+    socket.broadcast.to(toSocketId).emit('offer', { offer, username: from });
   });
 
-  socket.on('answer', ({ answer, username }) => {
+  socket.on('answer-to', ({ answer, to, from }) => {
+    let toSocketId = '';
+    socketIdtoUsernameMap.forEach((value, key) => {
+      if (value == to) {
+        toSocketId = key;
+      }
+    });
+    socket.broadcast.to(toSocketId).emit('answer', { answer, username: from });
+  });
+
+  socket.on('ice-candidate', ({ iceCandidate }) => {
     socket.broadcast
       .to(socketIdtoRoomIdMap.get(socket.id))
-      .emit('answer', { answer, username });
-  });
-
-  socket.on('ice-candidate', ({ iceCandidate, username }) => {
-    socket.broadcast
-      .to(socketIdtoRoomIdMap.get(socket.id))
-      .emit('ice-candidate', { iceCandidate, username });
+      .emit('ice-candidate', {
+        iceCandidate,
+        username: socketIdtoUsernameMap.get(socket.id),
+      });
   });
 
   socket.on('disconnect', async () => {
     socketIdtoUsernameMap.delete(socket.id);
-    const key = Object.keys(rooms).find((key) =>
-      rooms[key].includes(socket.id)
+    const key = Object.keys(rooms).find(
+      (key) => rooms[key] && rooms[key].includes(socket.id)
     );
-    rooms[key] = rooms[key].filter((value) => value != socket.id);
+    if (rooms[key]) {
+      rooms[key] = rooms[key]?.filter((value) => value != socket.id);
+    }
   });
 });
 
