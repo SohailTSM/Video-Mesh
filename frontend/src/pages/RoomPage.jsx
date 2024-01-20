@@ -13,6 +13,7 @@ export const loader = async ({ request }) => {
 };
 
 let keyCount = 0;
+let streams = {};
 
 const RoomPage = () => {
   const { flag, username: myUsername, socket, roomId } = useLoaderData();
@@ -21,18 +22,34 @@ const RoomPage = () => {
 
   const handleNewUser = useCallback(async ({ username }) => {
     const offer = await createOffer(username);
+    peerConnections[username].addEventListener('track', async (event) => {
+      const [remoteStream] = event.streams;
+      setVideoStreams((prev) => {
+        return { ...prev, [username]: remoteStream };
+      });
+      streams[username] = remoteStream;
+    });
     socket.emit('offer-to', { offer, to: username, from: myUsername });
   }, []);
 
   const handleOffer = useCallback(async ({ offer, username }) => {
     console.log(offer);
     const answer = await createAnswer({ offer, username });
+    peerConnections[username].addEventListener('track', async (event) => {
+      const [remoteStream] = event.streams;
+      setVideoStreams((prev) => {
+        return { ...prev, [username]: remoteStream };
+      });
+      streams[username] = remoteStream;
+    });
     socket.emit('answer-to', { answer, to: username, from: myUsername });
   }, []);
 
   const handleAnswer = useCallback(async ({ answer, username }) => {
     console.log(answer);
     await saveAnswer({ answer, username });
+    console.log(videoStreams);
+    socket.emit('user-connected', { username: myUsername });
   }, []);
 
   const handleIceCandidate = useCallback(async ({ iceCandidate, username }) => {
@@ -43,6 +60,29 @@ const RoomPage = () => {
     }
   }, []);
 
+  const handleUserConnected = useCallback(
+    async ({ username }) => {
+      console.log(streams);
+      streams[myUsername].getTracks().forEach((track) => {
+        Object.keys(peerConnections).forEach((key) => {
+          peerConnections[key].addTrack(track, streams[myUsername]);
+        });
+      });
+    },
+    [peerConnections]
+  );
+
+  navigator.mediaDevices
+    .getUserMedia({ video: true, audio: false })
+    .then((stream) => {
+      if (!videoStreams[myUsername]) {
+        setVideoStreams((prev) => {
+          return { ...prev, [myUsername]: stream };
+        });
+        streams[myUsername] = stream;
+      }
+    });
+
   useEffect(() => {
     if (flag == 'C') {
       socket.emit('create-room', { roomId });
@@ -50,25 +90,18 @@ const RoomPage = () => {
       socket.emit('join-room', { roomId });
     }
 
-    let localStream = '';
-    navigator.mediaDevices
-      .getUserMedia({ video: true, audio: false })
-      .then((stream) => {
-        setVideoStreams((prev) => {
-          return { ...prev, [myUsername]: stream };
-        });
-      });
-
     socket.on('new-user', handleNewUser);
     socket.on('offer', handleOffer);
     socket.on('answer', handleAnswer);
     socket.on('ice-candidate', handleIceCandidate);
+    socket.on('user-connected', handleUserConnected);
 
     return () => {
       socket.off('new-user', handleNewUser);
       socket.off('offer', handleOffer);
       socket.off('answer', handleAnswer);
       socket.off('ice-candidate', handleIceCandidate);
+      socket.off('user-connected', handleUserConnected);
     };
   }, []);
 
@@ -82,7 +115,7 @@ const RoomPage = () => {
               playsInline
               controls={false}
               ref={(ref) => {
-                if (ref) ref.srcObject = videoStreams[key];
+                if (ref) ref.srcObject = streams[key];
               }}
               key={keyCount++}
             />
