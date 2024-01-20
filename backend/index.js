@@ -80,6 +80,12 @@ io.on('connection', (socket) => {
       });
   });
 
+  socket.on('user-connected', ({ username }) => {
+    io.sockets.to(socketIdtoRoomIdMap.get(socket.id)).emit('user-connected', {
+      username: socketIdtoUsernameMap.get(socket.id),
+    });
+  });
+
   socket.on('disconnect', async () => {
     socketIdtoUsernameMap.delete(socket.id);
     const key = Object.keys(rooms).find(
